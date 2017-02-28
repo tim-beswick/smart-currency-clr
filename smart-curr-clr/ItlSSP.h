@@ -56,6 +56,7 @@ namespace ItlSSPSystem
 		setInhibit,
 		setDenominationInhibit,
 		setFileDelete,
+		setDisable,
 		setNewFileUpload,
 		sendUploadFileData,
 	}SystemState;
@@ -294,7 +295,7 @@ namespace ItlSSPSystem
 
 		bool WriteBulkData(array<unsigned char>^ data, int length)
 		{
-			return sys->WriteData(data, length);
+			return sys->WriteDataRorResponse(data, length);
 
 		}
 

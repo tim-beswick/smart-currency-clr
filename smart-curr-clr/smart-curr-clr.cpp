@@ -39,6 +39,7 @@ private:
 	static bool newCurrencyFileDelete = false;
 	static bool newUploadFile = false;
 	static array<unsigned char>^ uploadData;
+	static SystemState stateAfterDisable;
 
 
 public:
@@ -166,7 +167,8 @@ public:
 					newCurrencyFileDelete = false;
 				}
 				if (newUploadFile) {
-					ssp->state = setNewFileUpload;
+					ssp->state = setDisable;
+					stateAfterDisable = setNewFileUpload;
 					newUploadFile = false;
 				}
 
@@ -357,7 +359,17 @@ public:
 						Console::WriteLine(countryToCheck + " code is not supported in this device");
 					}
 					ssp->state = run;
-					break;		
+					break;	
+				case setDisable:
+					if (ssp->SSPCommand(cmdDisable, nullptr, 0)) {
+						// make sure the post disable state has been set
+						ssp->state = stateAfterDisable;
+					}
+					else {
+						Console::WriteLine("Unable to disable device. Restarting...");
+						ssp->state = connect;
+					}
+					break;
 				case setFileDelete:
 					dt = Encoding::ASCII->GetBytes(countryToCheck);
 					data[0] = 0x00; // file delete sub command
@@ -417,7 +429,7 @@ public:
 					else {
 						Console::WriteLine(countryToCheck + " file upload failed!");
 					}
-					ssp->state = run;
+					ssp->state = enable;
 					break;
 
 				

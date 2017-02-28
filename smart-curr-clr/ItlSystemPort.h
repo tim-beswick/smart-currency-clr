@@ -29,7 +29,7 @@ using namespace System;
 			try {
 				_serialPort = gcnew SerialPort();
 				_serialPort->PortName = port;
-				_serialPort->BaudRate = 9600;
+				_serialPort->BaudRate = 115200;
 				_serialPort->StopBits = StopBits::Two;
 				_serialPort->DataBits = 8;
 				_serialPort->Handshake = Handshake::None;
@@ -53,6 +53,39 @@ using namespace System;
 		{
 
 			_serialPort->Write(data, 0, length);
+
+			return true;
+		}
+
+		bool WriteDataRorResponse(array<unsigned char>^ data, int length)
+		{
+			array<unsigned char>^ buff = gcnew array<unsigned char>(32);
+			int max_len = 2048;
+			int data_to_send = length;
+			int data_gone = 0;
+			int lengthToSend = 0;
+			try {
+				// chunk the data
+				while (data_to_send) {
+
+					if (data_to_send >= max_len) {
+						lengthToSend = max_len;
+					}
+					else {
+						lengthToSend = data_to_send;
+					}
+
+					_serialPort->Write(data, data_gone, lengthToSend);
+					data_gone += lengthToSend;
+					data_to_send -= lengthToSend;
+				}
+			}
+			catch (Exception^ ex) {
+				Console::WriteLine("Failed to write data " + ex->Message);
+				return false;
+			}
+			// wait for response
+		//	int len = _serialPort->Read(buff, 0, 1);
 
 			return true;
 

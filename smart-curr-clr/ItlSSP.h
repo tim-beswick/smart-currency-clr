@@ -19,6 +19,10 @@ namespace ItlSSPSystem
 		cmdEnable = 0x0A,
 		cmdDisable = 0x09,
 		cmdCountryData = 0x5E,
+		cmdCountrySupported = 0x1B,
+		cmdSetCountryInhibit = 0x1A,
+		cmdSetDenominationInhibit = 0x1C,
+		cmdFileOperations = 0x1D,
 	}ItlSSPCommand;
 
 
@@ -48,6 +52,12 @@ namespace ItlSSPSystem
 		enable,
 		run,
 		holdBill,
+		checkCode,
+		setInhibit,
+		setDenominationInhibit,
+		setFileDelete,
+		setNewFileUpload,
+		sendUploadFileData,
 	}SystemState;
 
 
@@ -82,10 +92,12 @@ namespace ItlSSPSystem
 		String^ SerailNumber = gcnew String("");
 		int numberOfCurrencies;
 		static List<ItlCurrency^>^ currencies;
+		bool useEscrow;
 		bool billInEscrow;
 		ItlValue^ escrowBill;
 		ItlValue^ creditBill;
 		bool newBillCredit;
+		ItlCurrency^ supportedCountry;
 		
 
 		ItlDevice() {
@@ -95,6 +107,9 @@ namespace ItlSSPSystem
 			escrowBill = gcnew ItlValue();
 			newBillCredit = false;
 			creditBill = gcnew ItlValue();
+			useEscrow = false;
+			supportedCountry = gcnew ItlCurrency();
+				 
 		}
 
 
@@ -131,13 +146,12 @@ namespace ItlSSPSystem
 
 		static unsigned char seq;
 		static unsigned char address;
-		static Boolean stuffed;
+		static bool stuffed;
 		static ItlSystemPort^ sys;
 		static ItlSSPPacket^ tx;
 		static ItlSSPPacket^ rx;
-		static Boolean _continue;
-		static Boolean newResponse;
-
+		static bool _continue;
+		static bool newResponse;
 
 		static void ReadPort(void)
 		{
@@ -207,11 +221,19 @@ namespace ItlSSPSystem
 
 						// seq from slave should match seq form host
 						unsigned char pktseq = (rx->data[1] & 0x80);
+						genResponseOK = false;
+						busyResponse = false;
 						if (seq == pktseq)
 						{
 							// toggle seq
 							seq = (seq == 0x80) ? 0x00 : 0x80;
 							newResponse = true;
+							if (rx->data[3] == 0xF0) {
+								genResponseOK = true;
+							}
+							if (rx->data[3] == 0xF5 && rx->data[2] == 2 && rx->data[4] == 3) {
+								busyResponse = true;
+							}
 
 						}
 
@@ -228,6 +250,8 @@ namespace ItlSSPSystem
 		SystemState state;
 		static ItlDevice^ itlDevice;
 		static bool showPackets;
+		static bool genResponseOK;
+		static bool busyResponse;
 
 		/**
 		*@brief Class constructor
@@ -267,6 +291,12 @@ namespace ItlSSPSystem
 
 		}
 
+
+		bool WriteBulkData(array<unsigned char>^ data, int length)
+		{
+			return sys->WriteData(data, length);
+
+		}
 
 
 		bool SSPCommand(ItlSSPCommand cmd, array<unsigned char>^ data, int length)
@@ -311,6 +341,7 @@ namespace ItlSSPSystem
 			rx->index = 0;
 			stuffed = false;
 			newResponse = false;
+			genResponseOK = false;
 			sys->WriteData(tx->data, tx->length);
 
 
@@ -403,6 +434,8 @@ namespace ItlSSPSystem
 
 			ItlCurrency^ cur = gcnew ItlCurrency();
 
+			cur->crcStatus = (rx->data[4] == 0) ? false : true;
+			cur->inhibitStatus = rx->data[5];
 			cur->countryCode = Encoding::ASCII->GetString(rx->data, 6, 3);
 			cur->version = Encoding::ASCII->GetString(rx->data, 9, 8);
 			itlDevice->currencies->Add(cur);
@@ -410,6 +443,22 @@ namespace ItlSSPSystem
 
 			return true;
 		}
+
+
+		bool ParseSupportedCountry(void)
+		{
+			if (rx->data[3] != 0xF0)
+			{
+				return false;
+			}
+			itlDevice->supportedCountry->countryCode = Encoding::ASCII->GetString(rx->data, 6, 3);
+			itlDevice->supportedCountry->version = Encoding::ASCII->GetString(rx->data, 9, 8);
+			itlDevice->supportedCountry->crcStatus = (rx->data[4] == 0) ? false : true;
+			itlDevice->supportedCountry->inhibitStatus = rx->data[5];
+
+			return true;
+		}
+
 
 		bool ParsePoll(void)
 		{
@@ -423,11 +472,13 @@ namespace ItlSSPSystem
 					break;
 				case billRead:
 					if (rx->data[i + 1] > 0) {
-						itlDevice->billInEscrow = true;
+						if (itlDevice->useEscrow) {
+							itlDevice->billInEscrow = true;
+						}
 						itlDevice->escrowBill->countryCode = Encoding::ASCII->GetString(rx->data, i + 1, 3);
 						itlDevice->escrowBill->value = 0;
 						for (int j = 0; j < 4; j++) {
-							itlDevice->escrowBill->value += (int)rx->data[i + 3 + j] << (8 * i);
+							itlDevice->escrowBill->value += (int)rx->data[i + 4 + j] << (8 * j);
 						}
 						i += 7;  // index event for bill data
 					}
@@ -443,7 +494,7 @@ namespace ItlSSPSystem
 					itlDevice->creditBill->countryCode = Encoding::ASCII->GetString(rx->data, i + 1, 3);
 					itlDevice->creditBill->value = 0;
 					for (int j = 0; j < 4; j++) {
-						itlDevice->creditBill->value += (int)rx->data[i + 4 + j] << (8 * i);
+						itlDevice->creditBill->value += (int)rx->data[i + 4 + j] << (8 * j);
 					}
 					itlDevice->newBillCredit = true;
 					i += 7;  // index event for bill data

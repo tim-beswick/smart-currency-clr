@@ -1,4 +1,15 @@
-// smart-curr-clr.cpp : main project file.
+//*----------------------------------------------------------------------------
+//*         Innovative Technology Ltd  - T.Beswick   - March 2017
+//*----------------------------------------------------------------------------
+//* The software is delivered "AS IS" without warranty or condition of any
+//* kind, either express, implied or statutory. This includes without
+//* limitation any warranty or condition with respect to merchantability or
+//* fitness for any particular purpose, or against the infringements of
+//* intellectual property rights of others.
+//*----------------------------------------------------------------------------
+//* File Name           : smart-curr-clr.cpp
+//* Description			: A command line program for ITL Smart Currency
+//*----------------------------------------------------------------------------
 
 #include "stdafx.h"
 
@@ -10,7 +21,7 @@ using namespace System::Threading;
 using namespace System::IO;
 
 
-
+/*enum for escrow fucntions*/
 typedef enum {
 	hold,
 	acceptBill,
@@ -18,6 +29,9 @@ typedef enum {
 }EscrowAction;
 
 
+/*
+* Main class
+*/
 public ref class SmartCurrency
 {
 
@@ -44,7 +58,9 @@ private:
 
 public:
 
-
+	/*
+	* Menu and help functions
+	*/
 
 	static bool ParseArgs(array<String^>^ args)
 	{
@@ -101,7 +117,7 @@ public:
 		Console::WriteLine("'I' Set a currency global inhibit (0 = not inhibited, 1 = inhibited)");
 		Console::WriteLine("'D' Set a currency denomination inhibit (0 = not inhibited, 1 = inhibited)");
 		Console::WriteLine("'X' delete a currency file");
-		Console::WriteLine("'U' upload a currency file");
+		Console::WriteLine("'U' upload a file for update");
 
 		Console::WriteLine(" ");
 		Console::WriteLine("Press return key to close...");
@@ -111,7 +127,9 @@ public:
 	}
 
 
-
+	/*
+	* The main loop
+	*/
 	static void Main(array<System::String ^> ^args)
 	{
 
@@ -131,10 +149,11 @@ public:
 		Thread^ td = gcnew Thread(gcnew ThreadStart(SmartCurrency::GetUserInput));
 		td->Start();
 
+		// SSP objects
 		sys = gcnew ItlSystemPort();
 		ssp = gcnew ItlSSP(sys);
 		ssp->itlDevice->useEscrow = useEscrow;
-
+		// open serial port unsing passed port parameter
 		if (!ssp->OpenPort(port)) {
 			Console::WriteLine("Unable to open com port: " + port);			
 		}
@@ -142,11 +161,11 @@ public:
 			_continue = true;
 			ssp->state = connect;
 			array<unsigned char>^ dt; 
-
+			// main State machine loop
 			while (_continue) {
 				Thread::Sleep(waitTime); 
 
-
+				// function flags
 				if (newCountryCheck) {
 					Console::WriteLine("Checking country code: " + countryToCheck);
 					newCountryCheck = false;
@@ -172,6 +191,7 @@ public:
 					newUploadFile = false;
 				}
 
+				// state machine functions
 				switch (ssp->state) {
 				case connect:
 					waitTime = 20;
@@ -385,10 +405,9 @@ public:
 					ssp->state = run;
 					break;
 				case setNewFileUpload:
-					ssp->showPackets = true;
 					dt = Encoding::ASCII->GetBytes(countryToCheck);
 					data[0] = 0x01; // file upload sub command
-					data[1] = 0x00; //dataset upload
+					data[1] = 0x00; //type upload
 					data[2] = dt->Length; // the length of the file name
 					ind = 3;
 					for (int i = 0; i < dt->Length; i++) {
@@ -412,14 +431,13 @@ public:
 						data[ind++] = (unsigned char)(timeout >> (8 * i));
 					}
 					if (ssp->SSPCommand(cmdFileOperations, data, ind) && ssp->genResponseOK) {
-						Console::WriteLine(countryToCheck + " currency file ready for upload to system");
+						Console::WriteLine(countryToCheck + "  file ready for upload to system");
 						ssp->state = sendUploadFileData;
 					}
 					else {
 						Console::WriteLine(countryToCheck + " error setting file upload");
 						ssp->state = run;
 					}
-					ssp->showPackets = false;
 					break;
 				case sendUploadFileData:
 					Console::WriteLine("Sending upload file data. Please wait...");
@@ -598,10 +616,9 @@ public:
 
 };
 
-
+/* entry point */
 int main(array<System::String ^> ^args)
 {
-
 	SmartCurrency::Main(args);
 
 }

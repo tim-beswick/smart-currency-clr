@@ -1,3 +1,15 @@
+//*         Innovative Technology Ltd  - T.Beswick   - March 2017
+//*----------------------------------------------------------------------------
+//* The software is delivered "AS IS" without warranty or condition of any
+//* kind, either express, implied or statutory. This includes without
+//* limitation any warranty or condition with respect to merchantability or
+//* fitness for any particular purpose, or against the infringements of
+//* intellectual property rights of others.
+//*----------------------------------------------------------------------------
+//* File Name           : ItlSSP.h
+//* Description			: A class for SSP protocol comuncations to an ITL Smart Currency Device
+//*----------------------------------------------------------------------------
+
 #pragma once
 using namespace System;
 using namespace System::Threading;
@@ -7,6 +19,7 @@ using namespace System::Collections::Generic;
 
 namespace ItlSSPSystem
 {
+	/* Smart Currency command list */
 	typedef enum {
 		cmdSync = 0x11,
 		cmdGetFirmware = 0x20,
@@ -25,7 +38,7 @@ namespace ItlSSPSystem
 		cmdFileOperations = 0x1D,
 	}ItlSSPCommand;
 
-
+	/*Smart Currency poll event responses */
 	typedef enum {
 		reset = 0xF1,
 		billRead = 0xEF,
@@ -83,7 +96,7 @@ namespace ItlSSPSystem
 	};
 
 
-
+	/* Class for ITL Smart Currency device */
 	public ref class ItlDevice {
 	private:
 
@@ -117,7 +130,7 @@ namespace ItlSSPSystem
 	};
 
 
-
+	/* SSP packet */
 	private ref class ItlSSPPacket {
 
 	private:
@@ -193,7 +206,7 @@ namespace ItlSSPSystem
 						stuffed = false;
 					}
 					else {
-						//repeated STX so falg for stuffed check on next byte
+						//repeated STX so flag for stuffed check on next byte
 						if (dt == STX) {
 							stuffed = true;
 						}
@@ -232,6 +245,7 @@ namespace ItlSSPSystem
 							if (rx->data[3] == 0xF0) {
 								genResponseOK = true;
 							}
+							// check for busy response
 							if (rx->data[3] == 0xF5 && rx->data[2] == 2 && rx->data[4] == 3) {
 								busyResponse = true;
 							}
@@ -292,14 +306,14 @@ namespace ItlSSPSystem
 
 		}
 
-
+		/* used when sending file data to communication port */
 		bool WriteBulkData(array<unsigned char>^ data, int length)
 		{
 			return sys->WriteDataRorResponse(data, length);
 
 		}
 
-
+		/* compile and transmit an ssp packet. Wait for response, timeout and retry */
 		bool SSPCommand(ItlSSPCommand cmd, array<unsigned char>^ data, int length)
 		{
 
@@ -368,7 +382,7 @@ namespace ItlSSPSystem
 		}
 
 		/**
-		*@brief
+		* utility function for CRC generation and checking
 		*/
 		static UInt16 CalculateCRC(array<unsigned char>^ data, int offset, int length)
 		{
@@ -389,7 +403,7 @@ namespace ItlSSPSystem
 
 		}
 
-
+		/* Gets device info from data response */
 		bool ParseSetUpData(void)
 		{
 			if (rx->data[4] != 0x0C) {
@@ -418,6 +432,7 @@ namespace ItlSSPSystem
 			return true;
 		}
 
+		/* convert IP response data to String*/
 		bool ParseIPData(void)
 		{
 			itlDevice->IPAddress = Encoding::ASCII->GetString(rx->data, 4, rx->data[2] - 1);
@@ -426,6 +441,7 @@ namespace ItlSSPSystem
 
 		}
 
+		/* convert a currency reponse to an ItlCurrency object and add to collection */
 		bool ParseCurrencyData(int index)
 		{
 			// clear down for new index
@@ -445,7 +461,7 @@ namespace ItlSSPSystem
 			return true;
 		}
 
-
+		/* convert currency reponse to ItlCurrency class variable for external access */
 		bool ParseSupportedCountry(void)
 		{
 			if (rx->data[3] != 0xF0)
@@ -460,7 +476,16 @@ namespace ItlSSPSystem
 			return true;
 		}
 
+		/* Parse event reponses - currently handles bill events only
+		* TODO: add event notiftiers for cashbox, jam , reject and staking events
+		* Set boolean flags to be processed in the main loop e.g:
 
+						if(newBillReject){
+							newBillReject = false;
+							... //handle the reject event in the main loop
+						}
+
+		*/
 		bool ParsePoll(void)
 		{
 

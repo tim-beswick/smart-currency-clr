@@ -240,7 +240,7 @@ public:
 						break;
 					}
 					if (ssp->SSPCommand(cmdGetSerial, nullptr, 0) && ssp->ParseSerialNumberData()) {
-						Console::WriteLine("Firmware version: " + ssp->itlDevice->SerailNumber);
+						Console::WriteLine("Serial number: " + ssp->itlDevice->SerailNumber);
 					}
 					else {
 						Console::WriteLine("Serial number command failed");
